@@ -12,6 +12,7 @@ Stop:      Ctrl+C  (or wait for MAX_MESSAGES)
 import json
 import ssl
 from datetime import datetime, timezone
+from pathlib import Path
 
 import paho.mqtt.client as mqtt
 
@@ -25,13 +26,13 @@ PORT = 8883 if USE_TLS else 1883
 
 # Topic = the "channel". '+' matches one level, '#' matches everything after.
 # All trams, vehicle position events only:
-# TOPIC = "/hfp/v2/journey/ongoing/vp/tram/#"
+TOPIC = "/hfp/v2/journey/ongoing/vp/tram/#"
 
-# specific tram and conducer
-TOPIC = "/hfp/v2/journey/ongoing/vp/tram/0040/00629/#"
+MAX_MESSAGES = 200            # stop automatically after this many messages
 
-MAX_MESSAGES = 74000            # stop automatically after this many messages
-OUTPUT_FILE = "scrap/files_test/hsl_sample.jsonl"
+# The sample is written next to this script, in samples/ (ignored by git).
+OUTPUT_FILE = Path(__file__).resolve().parent / "samples" / "hsl_sample.jsonl"
+OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
 
 received = 0
 out = open(OUTPUT_FILE, "w", encoding="utf-8")

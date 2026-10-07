@@ -1,0 +1,8 @@
+# Data produced by the scripts
+**/data/
+**/samples/
+**/failed/
+*.jsonl
+*.parquet
+*.tmp
+__pycache__/
