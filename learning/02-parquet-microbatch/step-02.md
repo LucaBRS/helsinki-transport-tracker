@@ -126,6 +126,97 @@ Two consequences:
 The disk could be full or a folder not writable. The rows are not dropped: they are saved to
 `data/failed/` as JSONL (the format from step 01), so we can inspect and reprocess them.
 
+## Pyarrow basic commands (for the exercises)
+
+*Written without running pyarrow in the authoring environment: if a command fails or behaves differently, note it in "My notes".*
+
+```python
+import pyarrow as pa
+import pyarrow.parquet as pq
+import pyarrow.compute as pc
+from pathlib import Path
+```
+
+**Find the files** (exercises 1, 5, 6, 7)
+
+```python
+files = sorted(Path("data/bronze").rglob("*.parquet"))   # every finished file, in all subfolders
+print(len(files))                                          # how many files
+for f in files:
+    print(f.name, f.stat().st_size)                        # name and size in bytes
+```
+
+**Read one file** (exercise 2)
+
+```python
+t = pq.read_table(files[0])        # a Table
+t.schema                           # column names and types (look for stop)
+t.num_rows                         # number of rows
+t.column_names                     # list of column names
+t.slice(0, 5).to_pylist()          # first 5 rows, as a list of dictionaries
+t.select(["veh", "tst", "stop"])   # a new table with only these columns
+```
+
+**Look at one column**
+
+```python
+t["stop"]                          # the column (a ChunkedArray)
+t["stop"].null_count               # how many nulls
+t["spd"][0].as_py()                # first value, as a normal Python number
+pc.mean(t["spd"]).as_py()          # average speed
+pc.max(t["spd"]).as_py()           # maximum speed
+pc.value_counts(t["route"])        # how many rows per route
+t.filter(pc.equal(t["route"], "1009"))   # only the rows of route 1009
+```
+
+**Look at a file without loading it** (fast, reads only the end of the file)
+
+```python
+pf = pq.ParquetFile(files[0])
+pf.metadata.num_rows
+pf.schema_arrow
+```
+
+**All files together** (exercises 3 and 4)
+
+```python
+all_t = pq.read_table("data/bronze")      # one table with every row; adds date and hour columns
+print(all_t.num_rows)                     # compare with 3105 from the log
+
+# or, adding up the rows file by file:
+print(sum(pq.ParquetFile(f).metadata.num_rows for f in files))
+```
+
+**Duplicates** (exercise 4, through pandas)
+
+```python
+df = all_t.to_pandas()
+keys = ["oper", "veh", "tsi"]
+print(df.duplicated(subset=keys).sum())            # how many rows are extra copies
+print(df.groupby(keys).size().value_counts())      # how many events appear 1x, 2x, 3x, 4x
+```
+
+**Size: Parquet vs JSONL** (exercise 5)
+
+```python
+t = pq.read_table(files[0])
+raw = t["raw_json"].to_pylist()                    # the original messages, as text
+jsonl = Path("compare.jsonl")
+jsonl.write_text("\n".join(raw) + "\n", encoding="utf-8")
+print("parquet:", files[0].stat().st_size, "bytes")
+print("jsonl:  ", jsonl.stat().st_size, "bytes")
+```
+
+**Rows per file** (exercises 6 and 7)
+
+```python
+for f in files:
+    print(f.name, pq.ParquetFile(f).metadata.num_rows)
+```
+
+Remember: a pyarrow Table is immutable. Every command above returns something new and leaves
+the original untouched.
+
 ## Exercise
 
 Install and run:
@@ -147,10 +238,22 @@ Let it run for 3-5 minutes, then Ctrl+C. Then, in another script or the Python s
 
 ## Status
 
-The script is written and its logic (parsing, partitions, atomic write, flush rule,
-failed batches) was tested offline with fake messages. **It has not yet been run
-with the real libraries or connected to the broker**: the first run is yours. If something
-is off, paste the error.
+First real run, 9 October 2026, on my PC (real paho, pyarrow and the HSL broker):
+
+- 3105 messages received, 3105 written, 0 unusable, in 7 files.
+- Six batches of 500-556 messages, one every ~9 seconds, so the **count** rule fired each time
+  (about 55 messages per second for the two lines). The 60-second rule never had to.
+- The batches are slightly above 500 because the main loop checks the buffer every 0.5 s,
+  so 500 is a minimum, not an exact size.
+- After Ctrl+C the final flush wrote the last message in its own 1-message file: a clean
+  shutdown works, but it leaves a tiny file (the "small files" problem; compaction comes in step 05).
+
+Exercises:
+
+- **1 (folder tree):** done. 7 files in one folder, `date=2026-10-09/hour=17`. The hour is UTC, while my clock said 19:17.
+- **2 (schema):** done. Types match the contract; `stop` is `int64` in pyarrow (pandas shows `float64` because of the nulls). Only `stop` has nulls in the sample file.
+- **3 (row count):** done. 3105 rows in the files = 3105 in the log.
+- **4-7:** skipped for now. The duplicate count (4) is done in step 04, when dbt deduplicates.
 
 ## My notes
 

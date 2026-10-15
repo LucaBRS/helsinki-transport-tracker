@@ -4,19 +4,140 @@ Questions that came up while studying `mqtt_to_parquet.py`.
 
 ---
 
-## 1. What is `pa.`, and how does pyarrow work?
+## 1. How does pyarrow work? What is it for, what is it not for, how is it used?
 
-At the top we wrote `import pyarrow as pa`. That gives the library a short nickname, so `pa.schema(...)` means `pyarrow.schema(...)`. In the same way, `pq` is `pyarrow.parquet`.
+(`pa.` is just the nickname from `import pyarrow as pa`, and `pq` is `pyarrow.parquet`.)
 
-**Apache Arrow** is a standard way to hold a table in memory column by column, instead of row by row. **pyarrow** is the Python library for Arrow, and it also reads and writes Parquet files. Arrow is the columnar table in memory, Parquet is the columnar table on disk.
+*Note: the code snippets below come from the library's standard API; they were not run in the environment where this was written.*
 
-In our script it plays three roles:
+### What pyarrow is
 
-- `pa.schema(...)`, `pa.field(...)`, `pa.int32()` describe the table's structure (the contract);
-- `pa.Table.from_pylist(rows, schema=SCHEMA)` builds an Arrow table in memory from our list of dictionaries;
-- `pq.write_table(table, path)` writes that table to a Parquet file.
+**pyarrow** is the Python library for **Apache Arrow**, a standard for holding tabular data in memory **column by column**. It has two jobs:
 
-pandas, Polars and DuckDB can all read Arrow tables directly, so the same format moves between tools.
+1. **Arrow in memory:** typed columns, tables and schemas, plus fast operations on them.
+2. **Reading and writing files**, mainly **Parquet** (also CSV, JSON and others).
+
+Arrow and Parquet are different things that fit together:
+
+| | Arrow | Parquet |
+|---|---|---|
+| Where | in memory (RAM) | on disk |
+| Purpose | fast to work with | small and fast to store and scan |
+| Layout | columnar | columnar, compressed |
+
+### Why it exists
+
+Before Arrow, every tool (pandas, Spark, databases) held tables in its own internal format. Moving data between them meant converting and copying everything. Arrow is a common format that many tools understand: pandas, Polars, DuckDB, Spark and others can pass Arrow tables to each other with little or no copying. In practice, pyarrow is often the glue between tools and the engine that reads and writes Parquet underneath them.
+
+### The main pieces
+
+**1. Types and schema (`pa`)**
+
+```python
+pa.int32(), pa.float64(), pa.string(), pa.timestamp("ms", tz="UTC")
+pa.field("veh", pa.int32())              # one named column with a type
+pa.schema([field1, field2, ...])         # the full contract
+```
+
+This is what we use in `SCHEMA`.
+
+**2. Arrays and tables (`pa`)**
+
+- An **Array** is one typed column.
+- A **Table** is a set of named columns, i.e. what you would call a DataFrame.
+
+```python
+table = pa.table({"veh": [629, 630], "spd": [7.2, 0.0]})
+table = pa.Table.from_pylist(list_of_dicts, schema=SCHEMA)   # what we use
+table.schema          # column names and types
+table.num_rows        # number of rows
+table.column("spd")   # one column
+table.to_pylist()     # back to a list of dictionaries
+table.to_pandas()     # to a pandas DataFrame
+```
+
+Important: Arrow arrays are **immutable**. You don't edit a value in place, you build a new table.
+
+**3. Parquet files (`pq`)**
+
+```python
+pq.write_table(table, "file.parquet", compression="snappy")    # write
+table = pq.read_table("file.parquet")                           # read all
+table = pq.read_table("file.parquet", columns=["veh", "spd"])  # only some columns
+```
+
+Reading only some columns is the columnar advantage from theory C1 in practice: the other columns are not read from disk.
+
+You can also inspect a file without loading it:
+
+```python
+pq.ParquetFile("file.parquet").schema_arrow
+pq.ParquetFile("file.parquet").metadata.num_rows
+```
+
+**4. Datasets: many files as one table (`pyarrow.dataset`)**
+
+Our `data/bronze/` folder has many files in `date=/hour=` folders. A dataset treats all of them as one table:
+
+```python
+import pyarrow.dataset as ds
+dataset = ds.dataset("data/bronze", format="parquet", partitioning="hive")
+table = dataset.to_table(filter=ds.field("hour") == 16)
+```
+
+`partitioning="hive"` makes it understand the `date=...` / `hour=...` folder names as columns. Folders that don't match the filter are skipped without being opened, which is the benefit of the partitioning from C4.
+
+**5. Compute functions (`pyarrow.compute`)**
+
+```python
+import pyarrow.compute as pc
+pc.mean(table["spd"])
+pc.value_counts(table["route"])
+```
+
+Fast filters, aggregations and string/date operations on columns.
+
+### What it is good for
+
+- Writing Parquet with an explicit schema, as in our script.
+- Reading Parquet quickly, only the columns and files you need.
+- Moving data between tools without copying (pandas, Polars, DuckDB).
+- Checking a file's schema and metadata.
+
+### What it is not
+
+- **Not a database.** No SQL, no indexes, no transactions, no server.
+- **Not for editing data in place.** Tables are immutable and Parquet files are closed once written. To "change" something you write a new table or file.
+- **Not for appending row by row.** It works on blocks. That is why we use a buffer and micro-batches.
+- **Not a full analysis environment.** `pyarrow.compute` covers the basics, but for real analysis or SQL you normally hand the data to pandas, Polars or DuckDB.
+- **Not light on memory by default.** A table is held in RAM. For data bigger than memory you use datasets with filters and batches.
+- **Verbose.** The API is low level: more typing than pandas for simple tasks.
+
+### Pyarrow vs the tools around it
+
+| Tool | What it is | When |
+|---|---|---|
+| **pyarrow** | Arrow tables and the Parquet reader/writer | the writing layer, schemas, glue |
+| **pandas** | DataFrames with a friendly API | small to medium analysis in Python |
+| **Polars** | fast DataFrame library | larger data in Python |
+| **DuckDB** | in-process SQL engine; reads Parquet directly | SQL on our bronze files |
+
+### How we use it in this project
+
+- **Now (step 2):** schema + `from_pylist` + `write_table`. We use pyarrow only as the Parquet writer.
+- **Step 4:** we will mostly *not* read the files with pyarrow. DuckDB (through dbt) reads the Parquet files with SQL, and pyarrow stays in the background as the format bridge.
+- **Exercises 2 and 3 in step-02.md:** you will use `pq.read_table` and `.schema` to look at the files by hand.
+
+### Quick things to try in the exercises
+
+```python
+import pyarrow.parquet as pq
+
+t = pq.read_table("path/to/a/file.parquet")
+print(t.schema)                    # exercise 2: look for the nullable columns
+print(t.num_rows)                  # exercise 3: compare with the log
+print(t.slice(0, 5).to_pylist())   # first 5 rows as dictionaries
+```
 
 ---
 
@@ -143,6 +264,117 @@ Details:
 - The lock is created once, `threading.Lock()` in `__init__`. After that you use it as `with self.lock:`, **without** parentheses.
 - `drain` holds the lock only for the quick part (grabbing the rows). The slow disk writing happens **outside** the lock, so the MQTT thread never waits during a write.
 - In standard Python, a plain `list.append` is already protected internally, so this script would probably work without the lock. The lock makes the safety explicit and is the right habit for any shared state.
+
+---
+
+## 11. Can pyarrow read all the Parquet files in a folder?
+
+Yes. Point `pq.read_table` at the folder instead of a file, and it reads every Parquet file below it, subfolders included, as one table.
+
+```python
+import pyarrow.parquet as pq
+
+table = pq.read_table("data/bronze")
+print(table.num_rows)        # all files together
+```
+
+- The `date=...` and `hour=...` folder names come back as extra columns (`date`, `hour`). This works because pyarrow understands that folder style, called Hive partitioning.
+- You can read only some columns or only some folders, and the rest is skipped, not loaded and then dropped:
+
+```python
+import pyarrow.dataset as ds
+
+dataset = ds.dataset("data/bronze", format="parquet", partitioning="hive")
+table = dataset.to_table(
+    columns=["veh", "spd", "tst"],
+    filter=ds.field("hour") == 17,     # only the hour=17 folder
+)
+```
+
+- **The safe way:** the atomic write exists so readers only look at finished `*.parquet` files. If the script ever crashed halfway through a write, a leftover `.tmp` file could stay in a folder, and it is not certain how the folder reader treats it. To control which files go in, list them yourself:
+
+```python
+from pathlib import Path
+import pyarrow as pa
+import pyarrow.parquet as pq
+
+files = sorted(Path("data/bronze").rglob("*.parquet"))
+table = pa.concat_tables([pq.read_table(f) for f in files])
+```
+
+This gives the same result, but without the `date` and `hour` columns.
+
+- **Memory:** either way, the table is loaded into RAM. For millions of rows, use `columns=` and `filter=` so you only load what you need.
+
+---
+
+## 12. Does it create one table or a list of tables? What is a ChunkedArray?
+
+**One single table**, with one total row count.
+
+- `pq.read_table("data/bronze")` returns one table directly.
+- In the `rglob` version, `[pq.read_table(f) for f in files]` is a list of tables (one per file), and `pa.concat_tables(...)` joins them into one.
+
+Inside the table, each column is stored in **chunks**, roughly one per file. A normal pyarrow **Array** is one column stored as one continuous block of memory. A **ChunkedArray** is one column stored as several such blocks placed one after the other, and it behaves like a single column:
+
+```
+file 1, column spd:  [7.2, 0.0, 3.1]      <- chunk 1
+file 2, column spd:  [4.5, 8.0]           <- chunk 2
+
+table["spd"]  ->  ChunkedArray with 2 chunks, 5 values, used as one column
+```
+
+Why: joining two tables would normally mean copying all the values into one new block. With chunks, pyarrow puts the existing blocks side by side, so combining many files costs almost nothing.
+
+In practice you rarely notice it:
+
+```python
+col = table["spd"]
+col.num_chunks          # how many blocks
+len(col)                # total values, as if it were one
+col[3]                  # indexing works across chunks
+col.to_pylist()         # all values as a Python list
+col.combine_chunks()    # merge into ONE contiguous Array (this does copy)
+```
+
+You only need `combine_chunks()` if some function insists on a plain Array.
+
+---
+
+## 13. What happens if the Parquet files do not have the same schema?
+
+Reading many files into one table is like **stacking spreadsheets on top of each other**. It works smoothly only if the columns line up.
+
+Take two tiny files:
+
+```
+File A                    File B
+veh   stop                veh   stop
+629   null                630   1234
+629   null                630   1234
+```
+
+In File A every `stop` is `null`, so if the file had been written without a declared schema, its type would be "null". In File B the same column has numbers (`int64`). What is the type of `stop` in the stacked table? There are three situations:
+
+**1. Everything matches** (our case). Same columns, same types, so stacking just works. This is why our script always writes with the same `SCHEMA`.
+
+**2. Same column, different types.** The result depends on the tool:
+- sometimes it converts one to the other if that is safe (a "null" column can become `int64`, nothing is lost);
+- sometimes it stops with an **error**, when the types really clash (text vs number).
+
+**3. A column exists in one file but not in the other** (for example, we add a new column next month). Some tools fill the gap with `null`. Others use only the columns of the first file they see and **quietly ignore** the new one. The second behavior is the dangerous one, because there is no warning that a column disappeared.
+
+The details depend on the tool and the pyarrow version, so check before relying on them. `pa.concat_tables` has options to merge schemas (`promote_options="default"` or `"permissive"` in recent versions, `promote=True` in older ones).
+
+**The safe approach:** tell the reader what the table should look like, instead of letting it guess from whichever file comes first:
+
+```python
+dataset = ds.dataset("data/bronze", format="parquet", partitioning="hive", schema=SCHEMA)
+```
+
+Now every file is checked against our contract. Differences that can be fixed safely are fixed, and real conflicts produce an error, so you find out instead of getting wrong data silently.
+
+**Does it matter for us now?** No. All our files come from the same script with the same `SCHEMA`. It matters when the schema **changes over time** (*schema evolution*): we add a column and old files lack it. DuckDB, which we use in step 4, handles it with an option: `read_parquet('...', union_by_name=true)` matches columns by name and fills the gaps with nulls.
 
 ---
 
