@@ -186,7 +186,12 @@ Things to verify once it runs:
 
 ## Status
 
-Theory done. Code not started.
+- Theory: done.
+- `docker-compose.yml` (Redpanda + console): done, running.
+- `producer.py` (MQTT to Redpanda, key = operator/vehicle, async produce, flush at exit): done, run on my PC and it works.
+- Consumer (Redpanda to Parquet, commit after writing, dead letter topic): to do.
+
+Commands to repeat the tests: `step-03-commands.md`. Questions and answers: `step-03-questions.md`. Thread diagram: `threads.png`.
 
 ## My notes
 
