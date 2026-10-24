@@ -1,0 +1,62 @@
+# Step 03 - Redpanda (a Kafka-compatible log) + Redpanda Console (web UI).
+# Based on the official single-broker quickstart, trimmed to what we need.
+# Run from this folder:   docker compose up -d
+# Web UI:                 http://localhost:8080
+
+name: helsinki-redpanda
+
+networks:
+  redpanda_network:
+    driver: bridge
+
+volumes:
+  redpanda-0: null              # the log is stored here, it survives restarts
+
+services:
+  redpanda-0:
+    image: docker.redpanda.com/redpandadata/redpanda:v26.2.5
+    container_name: redpanda-0
+    command:
+      - redpanda
+      - start
+      # Where the broker LISTENS. Two listeners:
+      #   internal = for programs inside the Docker network (the console)
+      #   external = for programs on our PC (our Python scripts)
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      # The address the broker TELLS clients to use from then on.
+      - --advertise-kafka-addr internal://redpanda-0:9092,external://localhost:19092
+      # Used by the console to read cluster information.
+      - --rpc-addr redpanda-0:33145
+      - --advertise-rpc-addr redpanda-0:33145
+      # Development settings: one CPU core, relaxed checks. Not for production.
+      - --mode dev-container
+      - --smp 1
+      - --default-log-level=info
+    volumes:
+      - redpanda-0:/var/lib/redpanda/data
+    networks:
+      - redpanda_network
+    ports:
+      - 19092:19092             # Kafka API  -> our scripts connect to localhost:19092
+      - 19644:9644              # Admin API
+
+  console:
+    image: docker.redpanda.com/redpandadata/console:v3.12.0
+    container_name: redpanda-console
+    entrypoint: /bin/sh
+    command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
+    environment:
+      CONFIG_FILEPATH: /tmp/config.yml
+      CONSOLE_CONFIG_FILE: |
+        kafka:
+          brokers: ["redpanda-0:9092"]
+        redpanda:
+          adminApi:
+            enabled: true
+            urls: ["http://redpanda-0:9644"]
+    networks:
+      - redpanda_network
+    ports:
+      - 8080:8080               # web UI -> http://localhost:8080
+    depends_on:
+      - redpanda-0

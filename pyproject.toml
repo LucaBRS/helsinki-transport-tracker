@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "confluent-kafka>=2.16.0",
     "paho-mqtt>=2.1.0",
     "pandas>=3.0.6",
     "pyarrow>=26.0.0",
