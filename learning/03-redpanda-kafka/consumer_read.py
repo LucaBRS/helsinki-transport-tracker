@@ -72,6 +72,7 @@ def main():
                 "| received_at", envelope["received_at"],
                 "| route", vp.get("desi"),
                 "| spd", vp.get("spd"),
+                "| topic", envelope["mqtt_topic"],
             )
     except KeyboardInterrupt:
         print("\nStopping...")

@@ -264,6 +264,52 @@ Counters: `received` and `dropped` are changed only by the MQTT thread; `deliver
 
 ---
 
-## Open question (to answer)
+## Part E: The consumer (part 1: read and print)
 
-Which single line would make `produce()` synchronous, and why do we not want that at 55 messages per second? (Hint in Q13.)
+### Q23. What do `Consumer(...)`, `subscribe`, `poll` and `close` do in `consumer_read.py`?
+
+- `Consumer({...})` creates the consumer with its settings (see Q24).
+- `consumer.subscribe([topic])` tells Redpanda: "I want to read this topic as a member of this group".
+- `consumer.poll(1.0)` is the core: **we ask** for one message and wait up to 1 second. It returns a message, or `None` if nothing arrived. This is the **pull** model (MQTT was push: the broker called `on_message`).
+- `message.error()` checks whether what came back is an error and not a real message.
+- `message.key()`, `.value()`, `.partition()`, `.offset()` are the parts of the message. Key and value are `bytes`, so we use `.decode("utf-8")` and `json.loads(...)`. We parse twice: the message value is the envelope, and `envelope["payload"]` is itself a JSON text (the original HSL message).
+- `consumer.close()` leaves the group cleanly. It does **not** commit unless we ask.
+
+`consumer_read.py` uses a throw-away group (`debug-reader`) and never commits, so every run starts again from offset 0. The real group (`parquet-writer`) is kept for the final consumer.
+
+### Q24. The four consumer settings
+
+| Setting | Question it answers | Our value |
+|---|---|---|
+| `group.id` | What is the name of our bookmark? | `"parquet-writer"` (`"debug-reader"` for tests) |
+| `enable.auto.commit` | Who moves the bookmark? | `False`: we do, after writing the file |
+| `auto.offset.reset` | Where do we start if there is no bookmark? | `"earliest"`: from the first message |
+| `commit(asynchronous=False)` | Do we wait for the confirmation? | Yes |
+
+- **`group.id`**: Redpanda only knows a name. Same name on restart = same bookmark ("you were at 4500"). A different name = a new reader with no bookmark, starting from the beginning. Different groups read the same messages independently.
+- **`enable.auto.commit = False`**: with `True` the library moves the bookmark on a timer, without knowing if the Parquet file was written. If the script crashed with 300 messages still in the buffer, the bookmark would already be past them: they stay in the log, but the consumer never reads them again, so for the Parquet they are lost. That is the "bookmark first" order of L4. With a manual commit after writing, a crash means the 300 messages are read again (at worst duplicates).
+- **`auto.offset.reset`**: used only when the group has no bookmark (first run, or the bookmark points to messages already removed by retention). `earliest` = start from the first message still in the log; `latest` = start from the end and skip everything already there. We want `earliest`, so the messages the log kept for us are never skipped. After the first commit the setting is no longer used.
+- **`commit(asynchronous=False)`**: waits until Redpanda confirms the bookmark is saved. We commit about once per 500 messages (about every 9 s), so waiting a few milliseconds costs nothing, and we know the bookmark moved before the next batch.
+
+### Q25. What is the topic `__consumer_offsets` that appeared in the console?
+
+An internal topic that Redpanda creates by itself (the same idea as Kafka). It is where Redpanda stores the consumer groups: **the bookmark is a message in this topic**. Redpanda uses a log to keep track of who reads which log.
+
+In the JSON I downloaded there were 4 messages, two pairs, because I ran the script twice. Each run left two records:
+
+| Offset | What it is | What is in it |
+|---|---|---|
+| 0 and 2 | the consumer **joins** the group `debug-reader` | protocol `consumer`/`range`, an id `rdkafka-...` (that consumer instance), the IP `172.18.0.1`, the topic `hsl.tram.positions` |
+| 1 and 3 | the consumer **leaves** (`close()`), the group is empty | `Members: null`, `Leader: null`, `Generation` going up (2, then 4) |
+
+The unreadable text with control characters is the binary form of the same record. The console decodes it when `encoding` is `consumerOffsets`. The `timestamp` is in milliseconds since 1970.
+
+**What is missing:** an "offset commit" record (group, topic, partition, offset N). There is none, which proves that `consumer_read.py` never moved the bookmark, and explains why the second run read again from offset 0. After a real commit, a record with the offset will appear here.
+
+### Q26. Why do 4 messages of the same tram arrive almost at the same time?
+
+In the `consumer_read.py` output, offsets 0-3 have the same key, the same speed (6.19) and `received_at` values less than 1 ms apart. So these are not retries after an error: they arrive together.
+
+Hypothesis (not verified yet): HSL publishes the same event on several MQTT topics, and our subscription with `#` receives all of them. We do not see the difference because we do not look at the MQTT topic, but the envelope has it (`mqtt_topic`). Test: add `"| topic", envelope["mqtt_topic"],` to the print in `consumer_read.py`. If the 4 copies have different topics, that is the cause (to handle in silver, step 04); if they have the same topic, the hypothesis is wrong.
+
+*Result of the test: (to fill in)*

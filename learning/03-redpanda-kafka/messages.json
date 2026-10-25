@@ -1,0 +1,122 @@
+[
+    {
+        "partitionID": 0,
+        "offset": 0,
+        "timestamp": 1792937759486,
+        "compression": "uncompressed",
+        "isTransactional": false,
+        "headers": [],
+        "key": {
+            "payload": "\u0000\u0002\u0000\fdebug-reader",
+            "rawPayload": "AAIADGRlYnVnLXJlYWRlcg==",
+            "encoding": "utf8WithControlChars",
+            "isPayloadNull": false,
+            "schemaId": 0,
+            "size": 16
+        },
+        "value": {
+            "payload": "\u0000\u0003\u0000\bconsumer\u0000\u0000\u0000\u0001\u0000\u0005range\u0000,rdkafka-8ccf7659-9cc4-4600-8710-47d7072c7f32\u0000\u0000\u0001�sk\u0012�\u0000\u0000\u0000\u0001\u0000\u0003\u0000,rdkafka-8ccf7659-9cc4-4600-8710-47d7072c7f32��\u0000\u0007rdkafka\u0000\n172.18.0.1\u0000\u0004��\u0000\u0000��\u0000\u0000\u0000(\u0000\u0003\u0000\u0000\u0000\u0001\u0000\u0012hsl.tram.positions\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000����\u0000\u0000\u0000\u0000\u0000&\u0000\u0000\u0000\u0000\u0000\u0001\u0000\u0012hsl.tram.positions\u0000\u0000\u0000\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000",
+            "rawPayload": "AAMACGNvbnN1bWVyAAAAAQAFcmFuZ2UALHJka2Fma2EtOGNjZjc2NTktOWNjNC00NjAwLTg3MTAtNDdkNzA3MmM3ZjMyAAABoXNrEvwAAAABAAMALHJka2Fma2EtOGNjZjc2NTktOWNjNC00NjAwLTg3MTAtNDdkNzA3MmM3ZjMy//8AB3Jka2Fma2EACjE3Mi4xOC4wLjEABJPgAACvyAAAACgAAwAAAAEAEmhzbC50cmFtLnBvc2l0aW9ucwAAAAAAAAAA/////wAAAAAAJgAAAAAAAQASaHNsLnRyYW0ucG9zaXRpb25zAAAAAQAAAAAAAAAA",
+            "encoding": "binary",
+            "isPayloadNull": false,
+            "schemaId": 0,
+            "size": 246
+        }
+    },
+    {
+        "partitionID": 0,
+        "offset": 1,
+        "timestamp": 1792937759611,
+        "compression": "uncompressed",
+        "isTransactional": false,
+        "headers": [],
+        "key": {
+            "payload": {
+                "Version": 2,
+                "Group": "debug-reader"
+            },
+            "rawPayload": "AAIADGRlYnVnLXJlYWRlcg==",
+            "encoding": "consumerOffsets",
+            "isPayloadNull": false,
+            "schemaId": 0,
+            "size": 16
+        },
+        "value": {
+            "payload": {
+                "Version": 3,
+                "ProtocolType": "consumer",
+                "Generation": 2,
+                "Protocol": null,
+                "Leader": null,
+                "CurrentStateTimestamp": 1792937759611,
+                "Members": null,
+                "UnknownTags": {}
+            },
+            "rawPayload": "AAMACGNvbnN1bWVyAAAAAv////8AAAGhc2sTewAAAAA=",
+            "encoding": "consumerOffsets",
+            "isPayloadNull": false,
+            "schemaId": 0,
+            "size": 32
+        }
+    },
+    {
+        "partitionID": 0,
+        "offset": 2,
+        "timestamp": 1792937768485,
+        "compression": "uncompressed",
+        "isTransactional": false,
+        "headers": [],
+        "key": {
+            "payload": "\u0000\u0002\u0000\fdebug-reader",
+            "rawPayload": "AAIADGRlYnVnLXJlYWRlcg==",
+            "encoding": "utf8WithControlChars",
+            "isPayloadNull": false,
+            "schemaId": 0,
+            "size": 16
+        },
+        "value": {
+            "payload": "\u0000\u0003\u0000\bconsumer\u0000\u0000\u0000\u0003\u0000\u0005range\u0000,rdkafka-8398dd3b-0ab7-4058-9944-3a413436bf6a\u0000\u0000\u0001�sk6$\u0000\u0000\u0000\u0001\u0000\u0003\u0000,rdkafka-8398dd3b-0ab7-4058-9944-3a413436bf6a��\u0000\u0007rdkafka\u0000\n172.18.0.1\u0000\u0004��\u0000\u0000��\u0000\u0000\u0000(\u0000\u0003\u0000\u0000\u0000\u0001\u0000\u0012hsl.tram.positions\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000����\u0000\u0000\u0000\u0000\u0000&\u0000\u0000\u0000\u0000\u0000\u0001\u0000\u0012hsl.tram.positions\u0000\u0000\u0000\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000",
+            "rawPayload": "AAMACGNvbnN1bWVyAAAAAwAFcmFuZ2UALHJka2Fma2EtODM5OGRkM2ItMGFiNy00MDU4LTk5NDQtM2E0MTM0MzZiZjZhAAABoXNrNiQAAAABAAMALHJka2Fma2EtODM5OGRkM2ItMGFiNy00MDU4LTk5NDQtM2E0MTM0MzZiZjZh//8AB3Jka2Fma2EACjE3Mi4xOC4wLjEABJPgAACvyAAAACgAAwAAAAEAEmhzbC50cmFtLnBvc2l0aW9ucwAAAAAAAAAA/////wAAAAAAJgAAAAAAAQASaHNsLnRyYW0ucG9zaXRpb25zAAAAAQAAAAAAAAAA",
+            "encoding": "binary",
+            "isPayloadNull": false,
+            "schemaId": 0,
+            "size": 246
+        }
+    },
+    {
+        "partitionID": 0,
+        "offset": 3,
+        "timestamp": 1792937768614,
+        "compression": "uncompressed",
+        "isTransactional": false,
+        "headers": [],
+        "key": {
+            "payload": {
+                "Version": 2,
+                "Group": "debug-reader"
+            },
+            "rawPayload": "AAIADGRlYnVnLXJlYWRlcg==",
+            "encoding": "consumerOffsets",
+            "isPayloadNull": false,
+            "schemaId": 0,
+            "size": 16
+        },
+        "value": {
+            "payload": {
+                "Version": 3,
+                "ProtocolType": "consumer",
+                "Generation": 4,
+                "Protocol": null,
+                "Leader": null,
+                "CurrentStateTimestamp": 1792937768614,
+                "Members": null,
+                "UnknownTags": {}
+            },
+            "rawPayload": "AAMACGNvbnN1bWVyAAAABP////8AAAGhc2s2pgAAAAA=",
+            "encoding": "consumerOffsets",
+            "isPayloadNull": false,
+            "schemaId": 0,
+            "size": 32
+        }
+    }
+]
