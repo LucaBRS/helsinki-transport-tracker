@@ -313,3 +313,13 @@ In the `consumer_read.py` output, offsets 0-3 have the same key, the same speed 
 Hypothesis (not verified yet): HSL publishes the same event on several MQTT topics, and our subscription with `#` receives all of them. We do not see the difference because we do not look at the MQTT topic, but the envelope has it (`mqtt_topic`). Test: add `"| topic", envelope["mqtt_topic"],` to the print in `consumer_read.py`. If the 4 copies have different topics, that is the cause (to handle in silver, step 04); if they have the same topic, the hypothesis is wrong.
 
 *Result of the test: (to fill in)*
+
+### Q27. Is `messages.json` created automatically by Redpanda?
+
+No. The records inside it are written by Redpanda automatically, in the internal topic `__consumer_offsets` (group `debug-reader` joining and leaving, no commits). But the file itself was downloaded by hand from the Redpanda Console, whose default file name is `messages.json`. The timestamps match: first record 2026-10-25 about 15:16, file saved 15:20. Deleting the file changes nothing in Redpanda.
+
+### Q28. The topic `hsl.tram.positions` exists, but why is it empty?
+
+Retention removed the messages. `rpk topic describe hsl.tram.positions -p` shows `LOG-START-OFFSET 905` and `HIGH-WATERMARK 905`: 905 messages were written in the past (offsets 0-904), and the first one still kept is 905, so the log is empty. `retention.ms` is 7 days and the producer tests were older than that. Offsets do not restart from 0.
+
+Redpanda never fetches data by itself: the topic fills only while `producer.py` runs (the courier carrying parcels from MQTT to the warehouse, see the analogy table in `step-03.md`). Redpanda is a buffer, not an archive; the archive is the Parquet bronze layer.

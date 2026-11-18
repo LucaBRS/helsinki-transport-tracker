@@ -21,11 +21,14 @@ Next concrete step: write `consumer.py` (part 2), run it, verify the Parquet fil
 ## What exists in step 03
 
 - `docker-compose.yml`: Redpanda (`redpanda-0`, external address `localhost:19092`) + console (`http://localhost:8080`), volume `redpanda-0` keeps the log.
-- Topic `hsl.tram.positions` (1 partition, retention 7 days).
+- Topic `hsl.tram.positions` (1 partition, retention 7 days). On 2026-11-18 it is empty: retention removed
+  offsets 0-904, the next message gets offset 905 (Q28). Run `producer.py` to fill it again.
 - `producer.py`: MQTT -> envelope `{"mqtt_topic", "received_at", "payload"}`, key = `operator/vehicle`,
   async `produce()`, `poll()` loop with counters, `flush(10)` at exit. Tested on the real setup: works.
 - `consumer_read.py`: reads 10 messages with group `debug-reader`, never commits. Works.
-- `step-03.md`, `step-03-questions.md` (Q1-Q26), `step-03-commands.md`, `threads.png` (three-thread diagram).
+- `step-03.md`, `step-03-questions.md` (Q1-Q28), `step-03-commands.md`, `threads.png` (three-thread diagram).
+- `messages.json`: export from the Redpanda console of 4 records of the internal topic `__consumer_offsets`
+  (group `debug-reader` joining/leaving, no committed offsets). Committed in git; keep or delete: to decide.
 
 ## Design agreed for `consumer.py` (not written yet)
 
@@ -56,7 +59,8 @@ Next concrete step: write `consumer.py` (part 2), run it, verify the Parquet fil
 
 - **4 copies of every event.** In `consumer_read.py` output, 4 messages with the same key and speed
   arrive less than 1 ms apart. Hypothesis: HSL publishes the same event on several MQTT topics.
-  Test: print `envelope["mqtt_topic"]` for offsets 0-3. Write the result at the end of Q26 in
+  Test: run `producer.py` again, then print `envelope["mqtt_topic"]` for 4 consecutive copies
+  (offsets 0-3 no longer exist). Write the result at the end of Q26 in
   `step-03-questions.md`. Deduplication itself happens in step 04.
 - `producer.py` has not been tested for failures yet (Redpanda stopped while running, etc.).
   The table in `step-03-commands.md` lists the tests.
@@ -74,4 +78,6 @@ Next concrete step: write `consumer.py` (part 2), run it, verify the Parquet fil
 ## Housekeeping
 
 - The root `README.md` is not updated yet on purpose; only `learning/learning_readme.md` is current.
-- `.gitignore` ignores `**/data/`, `**/samples/`, `**/failed/`, `*.jsonl`, `*.parquet`, `*.tmp`, `__pycache__/`.
+- `learning/.gitignore` ignores `**/data/`, `**/samples/`, `**/failed/`, `*.jsonl`, `*.parquet`, `*.tmp`, `__pycache__/`.
+  The root `.gitignore` is the standard Python template.
+- `CLAUDE.md` and `PROGRESS.md` are not committed yet.

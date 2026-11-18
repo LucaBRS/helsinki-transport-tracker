@@ -17,7 +17,7 @@ Current status, decisions and next step: @PROGRESS.md
 - **Explain first, then code.** Theory in small pieces; code only after the theory is clear.
 - Work in **small tranches**: one concept or one file part at a time, then I test and report.
 - Explain every library and every call: what it is, who calls it, why we need it.
-  Use analogies when a concept is abstract (bookmark for offsets, post office for the dead letter queue).
+  Use analogies when a concept is abstract (bookmark for offsets, post office for the dead letter queue). Add also comment in the code
 - If I misunderstand something, correct it plainly and re-explain with a simpler example.
 - Do not ask me check questions in documentation files. In chat it is fine to ask one, sparingly.
 

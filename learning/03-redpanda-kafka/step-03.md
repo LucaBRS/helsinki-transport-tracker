@@ -167,9 +167,26 @@ HSL ──MQTT──► producer ──► TOPIC (log, kept 7 days, key = vehicl
                   lag = newest offset - committed offset  (watched over time)
 ```
 
+The same picture as an analogy (a courier and a warehouse):
+
+| Piece | In the analogy | What it does |
+|---|---|---|
+| **HSL MQTT** | The sorting centre | Broadcasts tram positions to whoever is connected **right now**. It keeps nothing: if nobody is listening, the parcel is lost. |
+| **`producer.py`** | The courier | Waits at the sorting centre, takes every parcel, adds a label (the envelope with `mqtt_topic` and `received_at`) and carries it to the warehouse. |
+| **Redpanda** | The warehouse | Puts parcels on numbered shelves in order (the offsets), keeps them 7 days, then throws them away. |
+| **`consumer.py`** | The warehouse worker | Takes parcels from the shelves, files them into Parquet folders, and marks in the register (`__consumer_offsets`) which shelf it has reached. |
+| **Parquet files (bronze)** | The permanent archive | Data stays here for good. |
+
+Two things follow from it:
+
+1. **If the warehouse worker stops**, parcels wait on the shelves; on restart it continues from its mark in the register. This is why Redpanda sits in the middle.
+2. **If the courier stops**, the sorting centre's parcels are lost, and the warehouse cannot help: it never received them.
+
+Redpanda never fetches data by itself: the topic fills only while `producer.py` runs. And the shelf numbers keep growing even after old parcels are thrown away (for example the topic can be empty with the next offset at 905).
+
 ## Exercise
 
-**Prerequisite:** Docker installed (check with `docker --version`). *Status: not checked yet.*
+**Prerequisite:** Docker installed (check with `docker --version`). *Status: done, Docker Desktop works and Redpanda runs.*
 
 Planned in three small pieces, each tested before the next (to be refined when we get to the code):
 
