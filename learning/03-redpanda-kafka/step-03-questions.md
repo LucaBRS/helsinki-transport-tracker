@@ -323,3 +323,10 @@ No. The records inside it are written by Redpanda automatically, in the internal
 Retention removed the messages. `rpk topic describe hsl.tram.positions -p` shows `LOG-START-OFFSET 905` and `HIGH-WATERMARK 905`: 905 messages were written in the past (offsets 0-904), and the first one still kept is 905, so the log is empty. `retention.ms` is 7 days and the producer tests were older than that. Offsets do not restart from 0.
 
 Redpanda never fetches data by itself: the topic fills only while `producer.py` runs (the courier carrying parcels from MQTT to the warehouse, see the analogy table in `step-03.md`). Redpanda is a buffer, not an archive; the archive is the Parquet bronze layer.
+
+### Q29. I created the topic by hand, it is not created by Docker, right?
+
+Right. `docker-compose.yml` only starts Redpanda and the console; the topic was created with
+`rpk topic create hsl.tram.positions -p 1 -c retention.ms=604800000` (`step-03-commands.md`). Proof: `rpk topic describe -c` shows `retention.ms` as `DYNAMIC_TOPIC_CONFIG`, a value set explicitly.
+
+But Redpanda **can** create topics by itself: `--mode dev-container` turns on `auto_create_topics_enabled = true`, so a producer writing to a missing topic creates it silently with default settings. A typo in a topic name gives a new empty topic, not an error; in production this setting is usually turned off. `producer.py` is protected because it checks the topic list at startup and exits if the topic is missing. `consumer.py` must do the same check for `hsl.tram.positions.dead`.

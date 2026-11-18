@@ -71,6 +71,13 @@ docker exec redpanda-0 rpk topic consume hsl.tram.positions -n 3       # key lik
 | Ctrl+C with messages in the queue | press Ctrl+C during a busy moment | `Done:` shows `delivered = received`, no "NOT sent" warning |
 | Data survives a restart | `docker compose down`, then `up -d`, then `rpk topic describe ... -p` | same high watermark (the volume keeps the log) |
 
+**Warning: topics can be created automatically.** With `--mode dev-container` Redpanda has
+`auto_create_topics_enabled = true` (check: `docker exec redpanda-0 rpk cluster config get auto_create_topics_enabled`).
+A producer writing to a missing topic creates it silently, with default settings instead of ours.
+`producer.py` is protected because it checks the topic list at startup and exits, but a topic deleted
+*while* it runs would come back with defaults. Always create topics by hand with `rpk topic create`
+(also `hsl.tram.positions.dead`).
+
 ## 7. Useful Docker commands
 
 ```bash

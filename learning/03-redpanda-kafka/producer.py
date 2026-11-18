@@ -38,7 +38,13 @@ MQTT_TOPICS = [
 ]
 
 # --- Redpanda (where the data goes) ---
-# localhost:19092 is the "external" address: our script runs on the PC, outside Docker.
+# "KAFKA" because Redpanda speaks the Kafka protocol and confluent_kafka is a Kafka client:
+# to move to another Kafka broker (e.g. Fabric Eventstream) only this address changes.
+# "Bootstrap" = first point of contact (the reception desk): the client asks here which brokers
+# exist and who leads each partition, then uses the addresses Redpanda advertises
+# (--advertise-kafka-addr in docker-compose.yml).
+# localhost:19092 is the "external" address: our script runs on the PC, outside Docker
+# (9092 is for containers inside Docker).
 KAFKA_BOOTSTRAP = "localhost:19092"
 KAFKA_TOPIC = "hsl.tram.positions"
 

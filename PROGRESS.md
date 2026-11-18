@@ -26,7 +26,7 @@ Next concrete step: write `consumer.py` (part 2), run it, verify the Parquet fil
 - `producer.py`: MQTT -> envelope `{"mqtt_topic", "received_at", "payload"}`, key = `operator/vehicle`,
   async `produce()`, `poll()` loop with counters, `flush(10)` at exit. Tested on the real setup: works.
 - `consumer_read.py`: reads 10 messages with group `debug-reader`, never commits. Works.
-- `step-03.md`, `step-03-questions.md` (Q1-Q28), `step-03-commands.md`, `threads.png` (three-thread diagram).
+- `step-03.md`, `step-03-questions.md` (Q1-Q29), `step-03-commands.md`, `threads.png` (three-thread diagram).
 - `messages.json`: export from the Redpanda console of 4 records of the internal topic `__consumer_offsets`
   (group `debug-reader` joining/leaving, no committed offsets). Committed in git; keep or delete: to decide.
 
@@ -45,6 +45,7 @@ Next concrete step: write `consumer.py` (part 2), run it, verify the Parquet fil
 - `received_at` column: take it from the envelope (written by the producer), not from the consumer clock.
 - Ctrl+C: write the remaining buffer, flush, commit, `close()`.
 - Create the dead letter topic: `docker exec redpanda-0 rpk topic create hsl.tram.positions.dead -p 1`.
+- At startup check that both topics exist (like `producer.py` does), because auto-creation is on (see Open problems).
 
 ## Decisions (and why)
 
@@ -62,6 +63,10 @@ Next concrete step: write `consumer.py` (part 2), run it, verify the Parquet fil
   Test: run `producer.py` again, then print `envelope["mqtt_topic"]` for 4 consecutive copies
   (offsets 0-3 no longer exist). Write the result at the end of Q26 in
   `step-03-questions.md`. Deduplication itself happens in step 04.
+- **Topic auto-creation is on** (`--mode dev-container` -> `auto_create_topics_enabled = true`): writing to a
+  missing topic creates it silently with default settings. Always create topics by hand; scripts check at startup (Q29).
+- Redpanda TRIAL license expires around 2026-11-20 (warning printed by `rpk`). Probably harmless for one broker;
+  if Redpanda behaves strangely after that date, start from here.
 - `producer.py` has not been tested for failures yet (Redpanda stopped while running, etc.).
   The table in `step-03-commands.md` lists the tests.
 

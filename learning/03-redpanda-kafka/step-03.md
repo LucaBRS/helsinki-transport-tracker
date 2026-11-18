@@ -67,6 +67,20 @@ Why the key is the vehicle number: **order is guaranteed only inside one partiti
 
 Different groups keep their own positions and read the same messages independently. Later we could add a second group for a live dashboard, and neither would disturb the other.
 
+**Who creates a topic?** Normally we do, by hand, choosing partitions and retention
+(`rpk topic create hsl.tram.positions -p 1 -c retention.ms=604800000`). But a broker can also create
+topics **automatically**: when a producer writes to a topic that does not exist, the broker creates it
+on the spot, with default settings.
+
+- **Development mode** (our `docker-compose.yml` starts Redpanda with `--mode dev-container`):
+  auto-creation is **on** (`auto_create_topics_enabled = true`). Handy for quick tests.
+- **Production**: auto-creation is normally **off** (Redpanda's default outside dev mode; in Kafka
+  teams usually turn it off). Topics are created on purpose, with the right settings.
+
+Why it matters: with auto-creation on, a typo in a topic name (`hsl.tram.postions`) does not give an error,
+it silently creates a new, empty topic with the wrong retention, and the data ends up there.
+So in our scripts we create topics by hand and check at startup that they exist (`producer.py` does it).
+
 ### L3. The bookmark: committing
 
 Think of the log as a very long book, one line per message, numbered by offset. The consumer reads from top to bottom and keeps a **bookmark**. Putting in the bookmark is called **committing** the offset.
