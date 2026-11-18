@@ -200,6 +200,11 @@ Redpanda never fetches data by itself: the topic fills only while `producer.py` 
 
 ## Exercise
 
+**Everything by hand, on purpose.** In this step the infrastructure is set up manually: `docker compose up`,
+`rpk topic create` for each topic, settings typed on the command line. The goal is to understand *why*
+each piece exists and what each option does (partitions, retention, groups). Automation comes in step 04,
+which starts again from scratch with a local IaC script: you can only automate well what you have done by hand.
+
 **Prerequisite:** Docker installed (check with `docker --version`). *Status: done, Docker Desktop works and Redpanda runs.*
 
 Planned in three small pieces, each tested before the next (to be refined when we get to the code):

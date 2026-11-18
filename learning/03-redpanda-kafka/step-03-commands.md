@@ -25,6 +25,7 @@ docker compose -f learning/03-redpanda-kafka/docker-compose.yml down -v
 ```bash
 docker exec redpanda-0 rpk topic list
 docker exec redpanda-0 rpk topic create hsl.tram.positions -p 1 -c retention.ms=604800000
+docker exec redpanda-0 rpk topic create hsl.tram.positions.dead -p 1 -c retention.ms=2592000000   # dead letters, 30 days
 docker exec redpanda-0 rpk topic describe hsl.tram.positions        # config
 docker exec redpanda-0 rpk topic describe hsl.tram.positions -p     # partitions, high watermark = number of messages
 docker exec redpanda-0 rpk topic delete hsl.tram.positions          # clean start: delete, then create again

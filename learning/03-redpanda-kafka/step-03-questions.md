@@ -312,7 +312,15 @@ In the `consumer_just_read_first_10.py` output, offsets 0-3 have the same key, t
 
 Hypothesis (not verified yet): HSL publishes the same event on several MQTT topics, and our subscription with `#` receives all of them. We do not see the difference because we do not look at the MQTT topic, but the envelope has it (`mqtt_topic`). Test: add `"| topic", envelope["mqtt_topic"],` to the print in `consumer_just_read_first_10.py`. If the 4 copies have different topics, that is the cause (to handle in silver, step 04); if they have the same topic, the hypothesis is wrong.
 
-*Result of the test: (to fill in)*
+**Result of the test (2026-11-18, offsets 905-954, `tsi` and `mqtt_topic` added to the print):**
+
+- **The hypothesis is wrong:** the copies have the **same MQTT topic**. Our two subscriptions (`1009`, `1006`) do not overlap, so we do not create the copies ourselves.
+- **They are real duplicates:** same key, same `spd`, same `tsi` (event time in seconds).
+- **4 copies, interleaved with other trams**, not one after the other. Example: tram 00429 at offsets 945, 946, 949, 952. Some trams show only 2 copies because their other copies fell outside the 50 messages read (e.g. 00415 at offsets 905-906: the other 2 probably arrived just before the producer subscribed).
+- All 50 messages have the same `tsi`: every tram sends its position at the same second, so one second of data holds every tram 4 times.
+- `received_at` less than 1 ms apart proves little: paho-mqtt hands over a whole network packet at once.
+
+Conclusion: HSL delivers each event 4 times, on the same topic. The exact cause on the HSL side is unknown, but it is outside our code. The plan does not change: bronze keeps the duplicates, silver removes them on `(oper, veh, tsi)` (step 04).
 
 ### Q27. Is `messages.json` created automatically by Redpanda?
 

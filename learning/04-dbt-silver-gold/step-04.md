@@ -18,7 +18,17 @@ bronze (raw Parquet) ──► silver (clean, deduplicated) ──► gold (aggr
 
 ## Exercise
 
-_(to be defined when we get here)_
+**Part 0: infrastructure first, automated.** The step starts from scratch, as if nothing existed
+(no container, no volume, no topics). Instead of the manual commands of step 03, the local
+infrastructure is created by code: Docker (`docker compose up -d`) plus a local IaC script,
+`local_iac_create_topics.sh`, that creates the topics with their settings and can be run any
+number of times (idempotent). The script is a local-only stand-in for real IaC (Terraform,
+Fabric deployment) and says so in a comment at the top. Idea to learn: infrastructure is
+created automatically first, then the code that runs on it.
+
+Then producer and consumer fill bronze, and the dbt part begins.
+
+_(the dbt exercises are to be defined when we get here)_
 
 ## Status
 

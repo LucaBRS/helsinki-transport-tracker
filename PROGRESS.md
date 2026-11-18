@@ -1,84 +1,107 @@
 # PROGRESS
 
-Last updated: 2026-11-18 (end of the chat session; first session in VS Code comes next).
+Last updated: 2026-11-18 (end of the first VS Code session).
 
 ## Where we are
 
-Step 03 in progress: the producer works, the consumer is half done.
-Next concrete step: write `consumer.py` (part 2), run it, verify the Parquet files and the committed offset.
+Step 03 in progress: producer works, `consumer.py` parts 1-2 written (raw bronze design).
+Next concrete step: Luca runs `consumer.py` to see the part 2 examples (one is broken on purpose),
+then decide how to change step 02 to raw bronze, then part 3 (poll loop + buffer).
 
 ## Steps
 
 | Step | Folder | Status |
 |---|---|---|
 | 01 MQTT connection | `learning/01-mqtt-connessione/` | done (explore_hsl.py, explore_two_routes.py, notes and questions) |
-| 02 Parquet micro-batch | `learning/02-parquet-microbatch/` | done; exercises 4-7 deferred (duplicate count moves to step 04) |
-| 03 Redpanda / Kafka | `learning/03-redpanda-kafka/` | theory done; Redpanda running; `producer.py` works; `consumer_just_read_first_10.py` works; **`consumer.py` to do** |
-| 04 dbt silver/gold | `learning/04-dbt-silver-gold/` | not started (stub) |
+| 02 Parquet micro-batch | `learning/02-parquet-microbatch/` | done (typed bronze); exercises 4-7 deferred; **to be changed to raw bronze** (see Next steps) |
+| 03 Redpanda / Kafka | `learning/03-redpanda-kafka/` | producer works; `consumer_just_read_first_10.py` works; **`consumer.py` parts 1-2 of 5** |
+| 04 dbt silver/gold | `learning/04-dbt-silver-gold/` | not started; part 0 = local IaC planned |
 | 05 Orchestration | `learning/05-orchestrazione/` | not started (stub); Dagster vs Airflow undecided |
 | 06 Fabric | `learning/06-fabric/` | not started (stub) |
 
 ## What exists in step 03
 
 - `docker-compose.yml`: Redpanda (`redpanda-0`, external address `localhost:19092`) + console (`http://localhost:8080`), volume `redpanda-0` keeps the log.
-- Topic `hsl.tram.positions` (1 partition, retention 7 days). On 2026-11-18 it is empty: retention removed
-  offsets 0-904, the next message gets offset 905 (Q28). Run `producer.py` to fill it again.
+- Topic `hsl.tram.positions` (1 partition, 7 days) with messages from offset 905 (older ones removed by retention, Q28).
+- Topic `hsl.tram.positions.dead` (1 partition, 30 days), created by hand.
 - `producer.py`: MQTT -> envelope `{"mqtt_topic", "received_at", "payload"}`, key = `operator/vehicle`,
   async `produce()`, `poll()` loop with counters, `flush(10)` at exit. Tested on the real setup: works.
-- `consumer_just_read_first_10.py`: reads 10 messages with group `debug-reader`, never commits. Works.
+- `consumer_just_read_first_10.py` (renamed from `consumer_read.py`): reads N messages with group `debug-reader`,
+  never commits, prints `tsi` and `mqtt_topic`. Works.
+- `consumer.py`: part 1 (config + topic check) tested by Luca. Part 2 (raw bronze `parse_message` + hand-made
+  examples) written and checked by Claude calling the function directly; **not run by Luca yet**.
 - `step-03.md`, `step-03-questions.md` (Q1-Q29), `step-03-commands.md`, `threads.png` (three-thread diagram).
-- `messages.json`: export from the Redpanda console of 4 records of the internal topic `__consumer_offsets`
-  (group `debug-reader` joining/leaving, no committed offsets). Committed in git; keep or delete: to decide.
+- `messages.json`: export from the Redpanda console of 4 records of `__consumer_offsets`
+  (group `debug-reader` joining/leaving, no commits). Committed in git; keep or delete: to decide.
 
-## Design agreed for `consumer.py` (not written yet)
+## Design agreed for `consumer.py`
 
-- One thread, one loop: `poll(1.0)` -> parse envelope -> parse inner payload with the step 02 `build_row`
-  -> buffer. No lock needed.
+- **Raw bronze.** The HSL payload is never opened in the consumer. Bronze contract (`BRONZE_SCHEMA`):
+  `received_at`, `mqtt_topic`, `kafka_key`, `kafka_partition`, `kafka_offset`, `payload` (text, untouched).
+- Two checks per message: 1) envelope readable (JSON, keys present, `received_at` valid) -> else `"bad envelope"`;
+  2) the row respects `BRONZE_SCHEMA`, checked one message at a time -> else `"schema mismatch"`.
+  Broken messages -> `hsl.tram.positions.dead` with the reason; the offset moves on.
+- One thread, one loop: `poll(1.0)` -> `parse_message` -> buffer. No lock needed.
 - Buffer due at 500 messages or 60 s (also checked when `poll` returns `None`).
 - Order on every batch: **1) write Parquet (atomic, .tmp then rename), 2) `flush()` the dead letter
   producer, 3) `consumer.commit(asynchronous=False)`**.
 - Settings: `group.id = "parquet-writer"`, `enable.auto.commit = False`, `auto.offset.reset = "earliest"`.
-- Bad messages (broken envelope, broken payload, missing `tst`/`veh`/`oper`) -> topic
-  `hsl.tram.positions.dead` with the reason; the offset moves on.
-- Reuse from `learning/02-parquet-microbatch/mqtt_to_parquet.py`: `SCHEMA`, `build_row`,
-  `group_by_partition`, `write_batch` (atomic write).
-- `received_at` column: take it from the envelope (written by the producer), not from the consumer clock.
+- Output folder computed from the location of `consumer.py` (not the current directory).
+- No import from step 02: pieces are copied and adapted (each step is self-contained).
+- The script only CHECKS that both topics exist; creating them is setup (`step-03-commands.md`, section 2).
 - Ctrl+C: write the remaining buffer, flush, commit, `close()`.
-- Create the dead letter topic: `docker exec redpanda-0 rpk topic create hsl.tram.positions.dead -p 1`.
-- At startup check that both topics exist (like `producer.py` does), because auto-creation is on (see Open problems).
+- Built in 5 parts: 1) config + topic check (done), 2) parse (written), 3) poll loop + buffer,
+  4) write -> flush -> commit, 5) Ctrl+C + manual broken-message test. Tests: one command at a time, failure first.
 
 ## Decisions (and why)
 
 - Redpanda between MQTT and files: if the writer stops, messages wait in the log. Producer stays tiny and "dumb".
 - At-least-once (write, then commit): lost data cannot be recovered, duplicates can be removed in silver.
-- Explicit Parquet schema (data contract) because `stop` is often null and type inference breaks between batches.
-- Bronze partitioned by **event time** (UTC) `date=YYYY-MM-DD/hour=HH`; keeps `raw_json`; keeps duplicates.
+- **Bronze is raw** (2026-11-18): Redpanda keeps 7 days, after that bronze is the only copy, so it keeps
+  everything. Bronze only rejects what it cannot store (broken envelope); it never judges the content.
+  Parsing, the full typed contract (oper, veh, tst, ...; dbt model contract) and an error table go to silver.
+- **Bronze partitioned by `received_at`** (arrival time, UTC) `date=YYYY-MM-DD/hour=HH`, because the payload
+  is not opened. Event time (`tst`) and late data are handled in silver. (Replaces "partitioned by event time".)
+- Schemas are always declared by hand (never inferred): small one in bronze, full one in silver.
 - Partition key = `operator/vehicle` so each tram's events stay in order.
 - Port 1883 without TLS for the HSL broker (8883 certificate error on this PC).
+- **4 copies of every event: confirmed real duplicates from HSL** (same MQTT topic, same `tsi`, interleaved
+  with other trams; Q26). Cause on the HSL side unknown, outside our code. Bronze keeps them, silver dedups on `(oper, veh, tsi)`.
+- DLQ topic retention 30 days (dead letters are evidence and may be noticed late).
 
 ## Open problems
 
-- **4 copies of every event.** In `consumer_just_read_first_10.py` output, 4 messages with the same key and speed
-  arrive less than 1 ms apart. Hypothesis: HSL publishes the same event on several MQTT topics.
-  Test: run `producer.py` again, then print `envelope["mqtt_topic"]` for 4 consecutive copies
-  (offsets 0-3 no longer exist). Write the result at the end of Q26 in
-  `step-03-questions.md`. Deduplication itself happens in step 04.
 - **Topic auto-creation is on** (`--mode dev-container` -> `auto_create_topics_enabled = true`): writing to a
   missing topic creates it silently with default settings. Always create topics by hand; scripts check at startup (Q29).
 - Redpanda TRIAL license expires around 2026-11-20 (warning printed by `rpk`). Probably harmless for one broker;
   if Redpanda behaves strangely after that date, start from here.
 - `producer.py` has not been tested for failures yet (Redpanda stopped while running, etc.).
   The table in `step-03-commands.md` lists the tests.
+- `step-03.md` theory still describes the typed bronze in places (e.g. "write Parquet" with schema/partitioning
+  from step 02): to align with the raw bronze decision.
 
 ## Next steps
 
-1. Write and run `consumer.py`; check the Parquet files and `rpk group describe parquet-writer`.
-2. Failure tests: stop the consumer for a minute (lag grows then falls), kill it right after a write
+1. Luca runs `uv run learning/03-redpanda-kafka/consumer.py` (from the project root) and reads the part 2 examples.
+2. **Change step 02 to raw bronze too** (Luca's wish, 2026-11-18): decide together what changes in
+   `mqtt_to_parquet.py` and `step-02.md` (schema, partitioning by `received_at`), explain first, then code.
+3. `consumer.py` parts 3-5; run it; check the Parquet files and `rpk group describe parquet-writer`.
+4. Failure tests: stop the consumer for a minute (lag grows then falls), kill it right after a write
    (do duplicates appear?), stop the producer (what is lost and why the log cannot help).
-3. Update `step-03.md` (hands-on part, status) and `step-03-questions.md`.
-4. Step 04: dbt-duckdb silver (dedup on `(oper, veh, tsi)`), then gold.
-5. Step 05: Dagster vs Airflow decision, lag and freshness alerts, compaction of small files.
-6. Step 06: Fabric (Eventstream accepts Kafka clients, so the producer code carries over).
+5. Update `step-03.md` (hands-on part, status, raw bronze) and `step-03-questions.md`.
+6. **Start of step 04: local IaC.** Step 03 stays manual on purpose (learn by hand first, automate after).
+   Step 04 starts from scratch, as if nothing existed (no container, no volume, no topics), and rebuilds
+   everything with Docker + one setup for the whole local infrastructure (Redpanda up + both topics), so
+   step 04 can focus on dbt. Separate idempotent script, NOT inside `docker-compose.yml`, named
+   `local_iac_create_topics.sh` (name agreed; may grow to cover all local setup). A comment at the top
+   must say it is a local-only stand-in for real IaC (Terraform, Fabric deployment), not for the cloud.
+   Then `consumer.py`, `producer.py` and `step-03-commands.md` point to it instead of repeating the settings.
+7. Step 04: dbt-duckdb silver: parse the raw payload, typed contract, error table, dedup on `(oper, veh, tsi)`; then gold.
+8. Step 05: Dagster vs Airflow decision, lag and freshness alerts, **DLQ alert** (notify when
+   `hsl.tram.positions.dead` grows), compaction of small files.
+9. Step 06: Fabric (Eventstream accepts Kafka clients, so the producer code carries over).
+   In Fabric the DLQ becomes an error table where the parsing happens (to verify in step 06).
+10. Later, after Fabric: a connection with Databricks too (wish, not planned in detail yet).
 
 ## Housekeeping
 

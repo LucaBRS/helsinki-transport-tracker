@@ -55,7 +55,8 @@ Current status, decisions and next step: @PROGRESS.md
 ## Project facts worth remembering
 - Routes: 1009 (line 9) and 1006 (line 6). About 55 messages per second together.
 - MQTT topic levels after `tram`: operator (index 7), vehicle (index 8), route (index 9).
-- Each HSL event arrives about 4 times; cause not confirmed yet. Bronze keeps duplicates;
-  silver deduplicates on `(oper, veh, tsi)`.
+- Each HSL event arrives 4 times: real duplicates (same MQTT topic, same `tsi`), interleaved with other
+  trams, coming from HSL and not from our code (Q26). Why HSL sends them is unknown. Bronze keeps
+  duplicates; silver deduplicates on `(oper, veh, tsi)`.
 - `tst` = event time (UTC) of the tram; `received_at` = our arrival time.
 - Delivery rule: write the file first, commit the offset after (at-least-once); duplicates are accepted.
