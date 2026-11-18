@@ -28,7 +28,7 @@ KAFKA_BOOTSTRAP = "localhost:19092"
 KAFKA_TOPIC = "hsl.tram.positions"
 
 GROUP_ID = "debug-reader"
-MAX_MESSAGES = 10          # stop after this many messages, so the test ends by itself
+MAX_MESSAGES = 50         # stop after this many messages, so the test ends by itself
 EMPTY_POLLS_BEFORE_STOP = 5   # stop if the topic stays empty for this many polls
 
 
@@ -78,6 +78,7 @@ def main():
                 "| received_at", envelope["received_at"],
                 "| route", vp.get("desi"),
                 "| spd", vp.get("spd"),
+                "| tsi", vp.get("tsi"),
                 "| topic", envelope["mqtt_topic"],
             )
     except KeyboardInterrupt:

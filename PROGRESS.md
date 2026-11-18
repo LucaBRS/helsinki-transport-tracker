@@ -13,7 +13,7 @@ Next concrete step: write `consumer.py` (part 2), run it, verify the Parquet fil
 |---|---|---|
 | 01 MQTT connection | `learning/01-mqtt-connessione/` | done (explore_hsl.py, explore_two_routes.py, notes and questions) |
 | 02 Parquet micro-batch | `learning/02-parquet-microbatch/` | done; exercises 4-7 deferred (duplicate count moves to step 04) |
-| 03 Redpanda / Kafka | `learning/03-redpanda-kafka/` | theory done; Redpanda running; `producer.py` works; `consumer_read.py` works; **`consumer.py` to do** |
+| 03 Redpanda / Kafka | `learning/03-redpanda-kafka/` | theory done; Redpanda running; `producer.py` works; `consumer_just_read_first_10.py` works; **`consumer.py` to do** |
 | 04 dbt silver/gold | `learning/04-dbt-silver-gold/` | not started (stub) |
 | 05 Orchestration | `learning/05-orchestrazione/` | not started (stub); Dagster vs Airflow undecided |
 | 06 Fabric | `learning/06-fabric/` | not started (stub) |
@@ -25,7 +25,7 @@ Next concrete step: write `consumer.py` (part 2), run it, verify the Parquet fil
   offsets 0-904, the next message gets offset 905 (Q28). Run `producer.py` to fill it again.
 - `producer.py`: MQTT -> envelope `{"mqtt_topic", "received_at", "payload"}`, key = `operator/vehicle`,
   async `produce()`, `poll()` loop with counters, `flush(10)` at exit. Tested on the real setup: works.
-- `consumer_read.py`: reads 10 messages with group `debug-reader`, never commits. Works.
+- `consumer_just_read_first_10.py`: reads 10 messages with group `debug-reader`, never commits. Works.
 - `step-03.md`, `step-03-questions.md` (Q1-Q29), `step-03-commands.md`, `threads.png` (three-thread diagram).
 - `messages.json`: export from the Redpanda console of 4 records of the internal topic `__consumer_offsets`
   (group `debug-reader` joining/leaving, no committed offsets). Committed in git; keep or delete: to decide.
@@ -58,7 +58,7 @@ Next concrete step: write `consumer.py` (part 2), run it, verify the Parquet fil
 
 ## Open problems
 
-- **4 copies of every event.** In `consumer_read.py` output, 4 messages with the same key and speed
+- **4 copies of every event.** In `consumer_just_read_first_10.py` output, 4 messages with the same key and speed
   arrive less than 1 ms apart. Hypothesis: HSL publishes the same event on several MQTT topics.
   Test: run `producer.py` again, then print `envelope["mqtt_topic"]` for 4 consecutive copies
   (offsets 0-3 no longer exist). Write the result at the end of Q26 in
@@ -85,4 +85,3 @@ Next concrete step: write `consumer.py` (part 2), run it, verify the Parquet fil
 - The root `README.md` is not updated yet on purpose; only `learning/learning_readme.md` is current.
 - `learning/.gitignore` ignores `**/data/`, `**/samples/`, `**/failed/`, `*.jsonl`, `*.parquet`, `*.tmp`, `__pycache__/`.
   The root `.gitignore` is the standard Python template.
-- `CLAUDE.md` and `PROGRESS.md` are not committed yet.
