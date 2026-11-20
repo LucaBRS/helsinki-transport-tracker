@@ -1,20 +1,19 @@
 # PROGRESS
 
-Last updated: 2026-11-18 (end of the first VS Code session).
+Last updated: 2026-11-19.
 
 ## Where we are
 
-Step 03 in progress: producer works, `consumer.py` parts 1-2 written (raw bronze design).
-Next concrete step: Luca runs `consumer.py` to see the part 2 examples (one is broken on purpose),
-then decide how to change step 02 to raw bronze, then part 3 (poll loop + buffer).
+Step 03 in progress: producer works, `consumer.py` parts 1-2 written and tested by Luca (raw bronze design).
+Next concrete step: part 4 (write Parquet -> flush dead letters -> commit), theory first.
 
 ## Steps
 
 | Step | Folder | Status |
 |---|---|---|
 | 01 MQTT connection | `learning/01-mqtt-connessione/` | done (explore_hsl.py, explore_two_routes.py, notes and questions) |
-| 02 Parquet micro-batch | `learning/02-parquet-microbatch/` | done (typed bronze); exercises 4-7 deferred; **to be changed to raw bronze** (see Next steps) |
-| 03 Redpanda / Kafka | `learning/03-redpanda-kafka/` | producer works; `consumer_just_read_first_10.py` works; **`consumer.py` parts 1-2 of 5** |
+| 02 Parquet micro-batch | `learning/02-parquet-microbatch/` | done; typed bronze **kept on purpose** as a learning exercise (note at the top of `step-02.md`); exercises 4-7 deferred |
+| 03 Redpanda / Kafka | `learning/03-redpanda-kafka/` | producer works; `consumer_1_just_read_first_10.py` works; `consumer_2_just_test_broken_msg.py` works; `consumer_3_just_poll_and_buffer.py` works (part 3) |
 | 04 dbt silver/gold | `learning/04-dbt-silver-gold/` | not started; part 0 = local IaC planned |
 | 05 Orchestration | `learning/05-orchestrazione/` | not started (stub); Dagster vs Airflow undecided |
 | 06 Fabric | `learning/06-fabric/` | not started (stub) |
@@ -26,10 +25,16 @@ then decide how to change step 02 to raw bronze, then part 3 (poll loop + buffer
 - Topic `hsl.tram.positions.dead` (1 partition, 30 days), created by hand.
 - `producer.py`: MQTT -> envelope `{"mqtt_topic", "received_at", "payload"}`, key = `operator/vehicle`,
   async `produce()`, `poll()` loop with counters, `flush(10)` at exit. Tested on the real setup: works.
-- `consumer_just_read_first_10.py` (renamed from `consumer_read.py`): reads N messages with group `debug-reader`,
+- `consumer_1_just_read_first_10.py` (renamed from `consumer_read.py`): reads N messages with group `debug-reader`,
   never commits, prints `tsi` and `mqtt_topic`. Works.
-- `consumer.py`: part 1 (config + topic check) tested by Luca. Part 2 (raw bronze `parse_message` + hand-made
-  examples) written and checked by Claude calling the function directly; **not run by Luca yet**.
+- `consumer_2_just_test_broken_msg.py` (was `consumer.py` after parts 1-2, renamed 2026-11-19): topic check +
+  raw bronze `parse_message` on 6 hand-made examples. Tested by Luca: 3x bad envelope, 1x schema mismatch,
+  non-JSON payload kept, good payload kept. Kept as a test bench.
+- `consumer_3_just_poll_and_buffer.py` (part 3, 2026-11-19): subscribe, `poll(1.0)`, parse, buffer, batch due at
+  500 rows / 60 s (only printed), WARNING on an empty window. No write, no DLQ, no commit; own group `debug-poll-buffer`.
+  Tested by Luca 2026-11-19 (producer off): offsets 905-8192 = 14 batches of 500 + 1 of 288, 0 broken, then WARNING.
+  One batch spanned 2026-11-18 14:33 and 2026-11-19 16:17 (two producer runs) -> part 4 must split a batch by partition folder.
+- `consumer.py`: name reserved for the complete consumer (parts 4-5). Until then each part is a numbered snapshot `consumer_N_just_*.py` (N = order of creation).
 - `step-03.md`, `step-03-questions.md` (Q1-Q29), `step-03-commands.md`, `threads.png` (three-thread diagram).
 - `messages.json`: export from the Redpanda console of 4 records of `__consumer_offsets`
   (group `debug-reader` joining/leaving, no commits). Committed in git; keep or delete: to decide.
@@ -42,7 +47,9 @@ then decide how to change step 02 to raw bronze, then part 3 (poll loop + buffer
   2) the row respects `BRONZE_SCHEMA`, checked one message at a time -> else `"schema mismatch"`.
   Broken messages -> `hsl.tram.positions.dead` with the reason; the offset moves on.
 - One thread, one loop: `poll(1.0)` -> `parse_message` -> buffer. No lock needed.
-- Buffer due at 500 messages or 60 s (also checked when `poll` returns `None`).
+- Buffer due at 500 messages or 60 s (also checked when `poll` returns `None`, timer with `time.monotonic()`).
+- Empty window (60 s with no messages): **no empty Parquet file**, print a warning line instead (standard split:
+  the consumer only REPORTS silence; deciding if it is a problem is a freshness alert in step 05, which knows the tram hours; consumer lag is a separate alert).
 - Order on every batch: **1) write Parquet (atomic, .tmp then rename), 2) `flush()` the dead letter
   producer, 3) `consumer.commit(asynchronous=False)`**.
 - Settings: `group.id = "parquet-writer"`, `enable.auto.commit = False`, `auto.offset.reset = "earliest"`.
@@ -82,9 +89,9 @@ then decide how to change step 02 to raw bronze, then part 3 (poll loop + buffer
 
 ## Next steps
 
-1. Luca runs `uv run learning/03-redpanda-kafka/consumer.py` (from the project root) and reads the part 2 examples.
-2. **Change step 02 to raw bronze too** (Luca's wish, 2026-11-18): decide together what changes in
-   `mqtt_to_parquet.py` and `step-02.md` (schema, partitioning by `received_at`), explain first, then code.
+1. ~~Luca runs `consumer.py` part 2~~ done 2026-11-19.
+2. ~~Change step 02 to raw bronze~~ dropped 2026-11-19: step 02 stays typed as a learning exercise;
+   the real bronze/silver/gold structure starts from step 03 (note added at the top of `step-02.md`).
 3. `consumer.py` parts 3-5; run it; check the Parquet files and `rpk group describe parquet-writer`.
 4. Failure tests: stop the consumer for a minute (lag grows then falls), kill it right after a write
    (do duplicates appear?), stop the producer (what is lost and why the log cannot help).

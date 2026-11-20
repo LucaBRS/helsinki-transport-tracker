@@ -1,25 +1,18 @@
 """
-Step 03 - Consumer: Redpanda topic  ->  Parquet files (bronze).
+Step 03 - Test script: parse_message() on hand-made broken messages.
 
-Reads the envelopes written by producer.py and writes them in batches as Parquet
-files. Bronze is RAW: the HSL payload is kept as the original text, never opened
-here. Parsing, types and quality checks belong to silver (step 04). The reason:
-Redpanda keeps messages only 7 days, after that bronze is the only copy, so it
-must keep everything.
+Snapshot of consumer.py after parts 1-2, kept as a small test bench. It does NOT
+read from the topic: it builds 6 hand-made messages (most of them broken on
+purpose) and shows what the raw bronze check says about each one:
+  bad envelope     -> not JSON, missing key, invalid received_at
+  schema mismatch  -> the row does not respect BRONZE_SCHEMA (payload not text)
+  OK               -> kept, even when the payload itself is garbage (silver judges it)
 
-The bookmark (committed offset) moves only AFTER a batch is safely on disk:
-at-least-once. A message whose envelope is broken goes to a dead letter topic
-with the reason; it never stops the flow.
+The real consumer (poll loop, Parquet, dead letter topic, commit) is consumer.py.
+Tested by Luca on 2026-11-19: results as listed above.
 
-Order on every batch:  1) write Parquet  2) flush the dead letter producer  3) commit.
-
-Built in small parts. This version contains:
-  part 1 - configuration and the startup check that both topics exist;
-  part 2 - parse_message(): one Kafka message -> (row, None) or (None, reason),
-           tried on hand-made examples (temporary, removed in part 3).
-
-Run:   uv run learning/03-redpanda-kafka/consumer.py
-Needs: Redpanda running and both topics created (the script prints the commands if not).
+Run:   uv run learning/03-redpanda-kafka/consumer_2_just_test_broken_msg.py
+Needs: Redpanda running and both topics created (part 1 check still runs first).
 """
 
 import json
@@ -150,7 +143,7 @@ def parse_message(value, key_bytes, partition, offset):
     return row, None
 
 
-# TEMPORARY (part 2 test, removed in part 3): hand-made values, most of them broken on purpose.
+# Hand-made values, most of them broken on purpose.
 def make_envelope(received_at, payload):
     envelope = {"mqtt_topic": "/hfp/test", "received_at": received_at, "payload": payload}
     return json.dumps(envelope).encode("utf-8")

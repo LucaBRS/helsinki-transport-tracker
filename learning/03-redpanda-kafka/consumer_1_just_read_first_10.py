@@ -9,7 +9,7 @@ is never saved: every run starts again from the first message. That lets us
 repeat the test as many times as we want without touching the real group
 ("parquet-writer") that the final consumer will use.
 
-Run:  uv run learning/03-redpanda-kafka/consumer_just_read_first_10.py
+Run:  uv run learning/03-redpanda-kafka/consumer_1_just_read_first_10.py
 Needs: Redpanda running and the topic filled by producer.py.
 """
 

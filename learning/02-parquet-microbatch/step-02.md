@@ -13,6 +13,16 @@ message → buffer → (500 messages or 60 s) → group by event hour → write 
                                                          ↘ if it fails: data/failed/ as JSONL
 ```
 
+> **Note (2026-11-19): this step's bronze is typed on purpose, as a learning exercise.**
+> In this step the full schema (`oper`, `veh`, `tst`, ...) and the partitioning by event time (`tst`)
+> were done in bronze for practice and for fun: to learn how a schema works as a contract, what pyarrow does
+> with types and nulls, and how partition folders are built. The step stays as it is.
+> From step 03 on, the project follows the real bronze/silver/gold structure. Bronze is **raw**:
+> it keeps the HSL payload as untouched text, partitions by `received_at` (arrival time), and has a small
+> schema that describes only the container. Parsing, the full typed contract and event-time handling move
+> to silver (step 04). The reason: Redpanda keeps messages for 7 days, after that bronze is the only copy,
+> so bronze must keep everything. Details in `PROGRESS.md` (Decisions) and `step-03.md`.
+
 ## Theory
 
 ### C1. Rows vs columns
